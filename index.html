@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controle Financeiro</title>
+
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { background:#f4f6f8; }
+    .card { border-radius: 12px; }
+    .saldo { font-size: 1.4rem; font-weight: bold; }
+    .gasto { color:#e53935; }
+    .credito { color:#43a047; }
+    nav { border-radius:0 0 20px 20px; }
+  </style>
+</head>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+
+<body>
+
+<nav class="blue">
+  <div class="nav-wrapper container">
+    <span class="brand-logo center">Controle Financeiro</span>
+  </div>
+</nav>
+
+<div class="container" style="margin-top:20px">
+
+  <!-- Novo lançamento -->
+  <div class="card">
+    <div class="card-content">
+      <span class="card-title">Novo Lançamento</span>
+
+      <div class="row">
+        <div class="input-field col s12">
+          <select id="tipo">
+            <option value="gasto">Gasto</option>
+            <option value="credito">Crédito</option>
+          </select>
+          <label>Tipo</label>
+        </div>
+
+        <div class="input-field col s12">
+          <select id="forma">
+            <option>Débito</option>
+            <option>Cartão de Crédito</option>
+            <option>Pix</option>
+          </select>
+          <label>Forma de Pagamento</label>
+        </div>
+
+        <div class="input-field col s12">
+          <select id="categoria">
+            <option>Mercado</option>
+            <option>Pensão</option>
+            <option>Alimentação</option>
+            <option>Bar</option>
+            <option>Combustível</option>
+            <option>Luz</option>
+            <option>Água</option>
+            <option>Condomínio</option>
+            <option>Aluguel</option>
+            <option>Tributos</option>
+            <option>Salario</option>
+          </select>
+          <label>Categoria</label>
+        </div>
+
+        <div class="input-field col s12">
+          <input type="number" id="valor" step="0.01">
+          <label for="valor">Valor</label>
+        </div>
+      </div>
+
+      <button class="btn blue" onclick="adicionar()">Adicionar</button>
+    </div>
+  </div>
+
+  <!-- Filtro -->
+  <div class="card">
+    <div class="card-content">
+      <span class="card-title">Filtro</span>
+      <div class="row">
+        <div class="input-field col s6">
+          <select id="filtroMes" onchange="render()"></select>
+          <label>Mês</label>
+        </div>
+        <div class="input-field col s6">
+          <select id="filtroAno" onchange="render()"></select>
+          <label>Ano</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumo -->
+  <div class="card">
+    <div class="card-content">
+      <span class="card-title">Resumo</span>
+      <p class="gasto">Total Gastos (Débito/Pix): <span id="totalGastos"></span></p>
+      <p class="orange-text">Fatura Cartão Crédito: <span id="fatura"></span></p>
+      <p class="credito">Total Créditos: <span id="totalCreditos"></span></p>
+      <p class="blue-text">Cheque Especial: <span id="cheque"></span></p>
+      <p class="saldo">Saldo Final: <span id="saldo"></span></p>
+    </div>
+  </div>
+
+  <!-- Gráfico -->
+  <div class="card">
+    <div class="card-content">
+      <span class="card-title">Gastos por Categoria</span>
+      <canvas id="grafico"></canvas>
+    </div>
+  </div>
+
+  <!-- Lançamentos -->
+  <div class="card">
+    <div class="card-content">
+      <span class="card-title">Lançamentos</span>
+      <ul class="collection" id="lista"></ul>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  M.FormSelect.init(document.querySelectorAll('select'));
+});
+
+let dados = JSON.parse(localStorage.getItem('financeiro')) || [];
+let chart;
+const CHEQUE_ESPECIAL = 4790;
+
+function salvar() {
+  localStorage.setItem('financeiro', JSON.stringify(dados));
+  render();
+}
+
+function adicionar() {
+  const agora = new Date();
+  const item = {
+    tipo: tipo.value,
+    forma: forma.value,
+    categoria: categoria.value,
+    valor: parseFloat(valor.value),
+    mes: agora.getMonth() + 1,
+    ano: agora.getFullYear(),
+    data: agora.toLocaleDateString()
+  };
+  if (!item.valor) return;
+  dados.push(item);
+  valor.value = '';
+  salvar();
+}
+
+function excluir(index) {
+  if (confirm('Excluir lançamento?')) {
+    dados.splice(index, 1);
+    salvar();
+  }
+}
+
+function carregarFiltros() {
+  const meses = [...new Set(dados.map(d => d.mes))];
+  const anos = [...new Set(dados.map(d => d.ano))];
+
+  filtroMes.innerHTML = meses.map(m => `<option value="${m}">${m}</option>`).join('');
+  filtroAno.innerHTML = anos.map(a => `<option value="${a}">${a}</option>`).join('');
+  M.FormSelect.init(document.querySelectorAll('select'));
+}
+
+function render() {
+  carregarFiltros();
+  lista.innerHTML = '';
+
+  let totalGastos = 0;
+  let totalCreditos = 0;
+  let faturaCartao = 0;
+  let categorias = {};
+
+  const mes = parseInt(filtroMes.value);
+  const ano = parseInt(filtroAno.value);
+
+  dados.map((d, index) => ({ ...d, index }))
+    .filter(d => d.mes === mes && d.ano === ano)
+    .forEach(i => {
+
+      if (i.tipo === 'gasto' && i.forma === 'Crédito') {
+        faturaCartao += i.valor;
+      } 
+      else if (i.tipo === 'gasto') {
+        totalGastos += i.valor;
+        categorias[i.categoria] = (categorias[i.categoria] || 0) + i.valor;
+      } 
+      else {
+        totalCreditos += i.valor;
+      }
+
+      const li = document.createElement('li');
+      li.className = 'collection-item';
+      li.innerHTML = `
+        <div style="display:flex;justify-content:space-between">
+          <div>
+            <strong>${i.categoria}</strong><br>
+            ${i.data} - ${i.forma} - R$ ${i.valor.toFixed(2)}
+          </div>
+          <a class="red-text" onclick="excluir(${i.index})">
+            <i class="material-icons">delete</i>
+          </a>
+        </div>`;
+      lista.appendChild(li);
+    });
+
+  document.getElementById('totalGastos').textContent = `R$ ${totalGastos.toFixed(2)}`;
+  document.getElementById('totalCreditos').textContent = `R$ ${totalCreditos.toFixed(2)}`;
+  document.getElementById('fatura').textContent = `R$ ${faturaCartao.toFixed(2)}`;
+  document.getElementById('cheque').textContent = `R$ ${CHEQUE_ESPECIAL.toFixed(2)}`;
+
+  const saldoFinal = totalCreditos - totalGastos - CHEQUE_ESPECIAL;
+  document.getElementById('saldo').textContent = `R$ ${saldoFinal.toFixed(2)}`;
+
+  atualizarGrafico(categorias);
+}
+
+function atualizarGrafico(categorias) {
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('grafico'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(categorias),
+      datasets: [{ data: Object.values(categorias) }]
+    }
+  });
+}
+
+if (dados.length) render();
+</script>
+
+</body>
+</html>
