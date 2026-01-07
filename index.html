@@ -18,11 +18,6 @@
     nav { border-radius:0 0 20px 20px; }
   </style>
 </head>
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
-}
-</script>
 
 <body>
 
@@ -111,11 +106,17 @@ if ('serviceWorker' in navigator) {
   <div class="card">
     <div class="card-content">
       <span class="card-title">Resumo</span>
+
       <p class="gasto">Total Gastos (Débito/Pix): <span id="totalGastos"></span></p>
       <p class="orange-text">Fatura Cartão Crédito: <span id="fatura"></span></p>
       <p class="credito">Total Créditos: <span id="totalCreditos"></span></p>
+
       <p class="blue-text">Cheque Especial: <span id="cheque"></span></p>
+
       <p class="saldo">Saldo Final: <span id="saldo"></span></p>
+      <p class="green-text" style="font-weight:bold">
+        Saldo disponível em conta: <span id="saldoConta"></span>
+      </p>
     </div>
   </div>
 
@@ -233,8 +234,11 @@ function render() {
   document.getElementById('fatura').textContent = `R$ ${faturaCartao.toFixed(2)}`;
   document.getElementById('cheque').textContent = `R$ ${CHEQUE_ESPECIAL.toFixed(2)}`;
 
-  const saldoFinal = totalCreditos - totalGastos - CHEQUE_ESPECIAL;
+  const saldoFinal = totalCreditos - totalGastos;
+  const saldoDisponivel = saldoFinal + CHEQUE_ESPECIAL;
+
   document.getElementById('saldo').textContent = `R$ ${saldoFinal.toFixed(2)}`;
+  document.getElementById('saldoConta').textContent = `R$ ${saldoDisponivel.toFixed(2)}`;
 
   atualizarGrafico(categorias);
 }
